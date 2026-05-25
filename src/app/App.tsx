@@ -25,7 +25,7 @@ function App() {
     const projectId = path.split("/")[2];
     if (projectId) {
       return (
-        <main>
+        <main className="h-full">
           <ProjectIdPage projectId={projectId} />
         </main>
       );
@@ -33,7 +33,7 @@ function App() {
   }
 
   return (
-    <main>
+    <main className="h-full">
         <ProjectsView />
     </main>
   );

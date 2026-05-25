@@ -1,5 +1,4 @@
 import { ProjectIdView } from "@/features/projects/components/project-id-view";
-
 const ProjectIdPage = ({
                            projectId,
                        }: {

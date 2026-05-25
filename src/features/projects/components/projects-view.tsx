@@ -69,7 +69,7 @@ export const ProjectsView = () => {
                 open={commandDialogOpen}
                 onOpenChange={setCommandDialogOpen}
             />
-            <div className="min-h-screen bg-sidebar flex flex-col items-center justify-center p-6 md:p-16">
+            <div className="h-full bg-sidebar flex flex-col items-center justify-center p-6 md:p-16">
                 <div className="w-full max-w-sm mx-auto flex flex-col gap-4 items-center">
 
                     <div className="flex justify-between gap-4 w-full items-center">

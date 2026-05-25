@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use tauri::Manager;
+use tauri::{Manager, Emitter};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -23,6 +23,20 @@ struct Project {
     #[serde(default)]
     last_opened: u64,
     import_status: Option<ImportStatus>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct FileDoc {
+    #[serde(rename = "_id")]
+    id: String,
+    #[serde(rename = "_creationTime")]
+    creation_time: u64,
+    project_id: String,
+    name: String,
+    #[serde(rename = "type")]
+    entry_type: String,
+    parent_id: Option<String>,
 }
 
 fn get_projects_path(app_handle: &tauri::AppHandle) -> PathBuf {
@@ -172,6 +186,116 @@ fn rename_project(app_handle: tauri::AppHandle, id: String, name: String) -> Res
     Ok(project)
 }
 
+#[tauri::command]
+fn list_files(
+    app_handle: tauri::AppHandle,
+    project_id: String,
+    parent_id: Option<String>,
+) -> Result<Vec<FileDoc>, String> {
+    let projects = get_projects(app_handle);
+    let project = projects
+        .iter()
+        .find(|p| p.id == project_id)
+        .ok_or_else(|| "Project not found".to_string())?;
+
+    let project_path = project
+        .path
+        .as_ref()
+        .ok_or_else(|| "Project path not set".to_string())?;
+    let base_path = PathBuf::from(project_path);
+
+    let search_path = if let Some(p_id) = &parent_id {
+        PathBuf::from(p_id)
+    } else {
+        base_path.clone()
+    };
+
+    if !search_path.starts_with(&base_path) {
+        return Err("Access denied: path is outside of project directory".to_string());
+    }
+
+    let entries = fs::read_dir(&search_path).map_err(|e| e.to_string())?;
+    let mut result = Vec::new();
+
+    for entry in entries {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+
+        // Skip hidden files
+        if name.starts_with('.') {
+            continue;
+        }
+
+        let metadata = entry.metadata().map_err(|e| e.to_string())?;
+        let entry_type = if metadata.is_dir() { "folder" } else { "file" };
+        let creation_time = metadata
+            .created()
+            .or_else(|_| metadata.modified())
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+
+        result.push(FileDoc {
+            id: path.to_string_lossy().to_string(),
+            creation_time,
+            project_id: project_id.clone(),
+            name,
+            entry_type: entry_type.to_string(),
+            parent_id: parent_id.clone(),
+        });
+    }
+
+    // Sort: folders first, then alphabetically
+    result.sort_by(|a, b| {
+        if a.entry_type != b.entry_type {
+            if a.entry_type == "folder" {
+                std::cmp::Ordering::Less
+            } else {
+                std::cmp::Ordering::Greater
+            }
+        } else {
+            a.name.cmp(&b.name)
+        }
+    });
+
+    Ok(result)
+}
+
+#[tauri::command]
+fn create_file_at_path(app_handle: tauri::AppHandle, path: String, content: String) -> Result<(), String> {
+    fs::write(&path, content).map_err(|e| e.to_string())?;
+    let _ = app_handle.emit("files-changed", ());
+    Ok(())
+}
+
+#[tauri::command]
+fn create_dir_at_path(app_handle: tauri::AppHandle, path: String) -> Result<(), String> {
+    fs::create_dir_all(&path).map_err(|e| e.to_string())?;
+    let _ = app_handle.emit("files-changed", ());
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_file_at_path(app_handle: tauri::AppHandle, path: String) -> Result<(), String> {
+    let metadata = fs::metadata(&path).map_err(|e| e.to_string())?;
+    if metadata.is_dir() {
+        fs::remove_dir_all(&path).map_err(|e| e.to_string())?;
+    } else {
+        fs::remove_file(&path).map_err(|e| e.to_string())?;
+    }
+    let _ = app_handle.emit("files-changed", ());
+    Ok(())
+}
+
+#[tauri::command]
+fn rename_file_at_path(app_handle: tauri::AppHandle, old_path: String, new_path: String) -> Result<(), String> {
+    fs::rename(&old_path, &new_path).map_err(|e| e.to_string())?;
+    let _ = app_handle.emit("files-changed", ());
+    Ok(())
+}
+
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -190,7 +314,12 @@ pub fn run() {
             open_project,
             import_project,
             get_project,
-            rename_project
+            rename_project,
+            list_files,
+            create_file_at_path,
+            create_dir_at_path,
+            delete_file_at_path,
+            rename_file_at_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
