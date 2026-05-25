@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "defineditor",
+        "title": "DefinEditor",
         "width": 800,
         "height": 600
       }
