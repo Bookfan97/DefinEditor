@@ -12,7 +12,48 @@ export interface FileDoc {
   type: FileType;
   parentId?: string;
   content?: string;
+  storageId?: string;
 }
+
+export const useFile = (fileId: string | null) => {
+  const [file, setFile] = useState<FileDoc | undefined>(undefined);
+
+  useEffect(() => {
+    if (!fileId) {
+      setFile(undefined);
+      return;
+    }
+
+    invoke<FileDoc>("get_file", { id: fileId })
+      .then(setFile)
+      .catch(console.error);
+  }, [fileId]);
+
+  return file;
+};
+
+export const useFilePath = (fileId: string | null) => {
+  const [path, setPath] = useState<FileDoc[] | undefined>(undefined);
+
+  useEffect(() => {
+    if (!fileId) {
+      setPath(undefined);
+      return;
+    }
+
+    invoke<FileDoc[]>("get_file_path", { id: fileId })
+      .then(setPath)
+      .catch(console.error);
+  }, [fileId]);
+
+  return path;
+};
+
+export const useUpdateFile = () => {
+  return async (args: { id: string; content: string }) => {
+    await invoke("update_file", { path: args.id, content: args.content });
+  };
+};
 
 export const useCreateFile = () => {
   return async (args: {

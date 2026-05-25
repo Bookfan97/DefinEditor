@@ -37,6 +37,119 @@ struct FileDoc {
     #[serde(rename = "type")]
     entry_type: String,
     parent_id: Option<String>,
+    content: Option<String>,
+}
+
+#[tauri::command]
+fn get_file(id: String) -> Result<FileDoc, String> {
+    let path = PathBuf::from(&id);
+    if !path.exists() {
+        return Err("File not found".to_string());
+    }
+
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_string();
+
+    let metadata = fs::metadata(&path).map_err(|e| e.to_string())?;
+    let entry_type = if metadata.is_dir() { "folder" } else { "file" };
+    let creation_time = metadata
+        .created()
+        .or_else(|_| metadata.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+
+    let content = if entry_type == "file" {
+        fs::read_to_string(&path).ok()
+    } else {
+        None
+    };
+
+    // We don't have project_id easily available here without more context,
+    // but we can try to infer it or just leave it empty if it's not strictly needed for the editor view.
+    // The editor view seems to only care about _id, name, and content.
+    
+    Ok(FileDoc {
+        id: id.clone(),
+        creation_time,
+        project_id: "".to_string(), // Placeholder
+        name,
+        entry_type: entry_type.to_string(),
+        parent_id: None, // Placeholder
+        content,
+    })
+}
+
+#[tauri::command]
+fn get_file_path(app_handle: tauri::AppHandle, id: String) -> Result<Vec<FileDoc>, String> {
+    let path = PathBuf::from(&id);
+    if !path.exists() {
+        return Err("File not found".to_string());
+    }
+
+    // Find which project this file belongs to
+    let projects = get_projects(app_handle);
+    let project = projects.iter().find(|p| {
+        if let Some(p_path) = &p.path {
+            path.starts_with(p_path)
+        } else {
+            false
+        }
+    }).ok_or_else(|| "Project not found for this file".to_string())?;
+
+    let project_path = PathBuf::from(project.path.as_ref().unwrap());
+    let mut current = path.clone();
+    let mut result = Vec::new();
+
+    while current.starts_with(&project_path) {
+        let name = current
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("")
+            .to_string();
+
+        let metadata = fs::metadata(&current).map_err(|e| e.to_string())?;
+        let entry_type = if metadata.is_dir() { "folder" } else { "file" };
+        let creation_time = metadata
+            .created()
+            .or_else(|_| metadata.modified())
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+
+        result.push(FileDoc {
+            id: current.to_string_lossy().to_string(),
+            creation_time,
+            project_id: project.id.clone(),
+            name,
+            entry_type: entry_type.to_string(),
+            parent_id: current.parent().map(|p| p.to_string_lossy().to_string()),
+            content: None,
+        });
+
+        if current == project_path {
+            break;
+        }
+        if let Some(parent) = current.parent() {
+            current = parent.to_path_buf();
+        } else {
+            break;
+        }
+    }
+
+    result.reverse();
+    Ok(result)
+}
+
+#[tauri::command]
+fn update_file(path: String, content: String) -> Result<(), String> {
+    fs::write(&path, content).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 fn get_projects_path(app_handle: &tauri::AppHandle) -> PathBuf {
@@ -244,6 +357,7 @@ fn list_files(
             name,
             entry_type: entry_type.to_string(),
             parent_id: parent_id.clone(),
+            content: None,
         });
     }
 
@@ -316,6 +430,9 @@ pub fn run() {
             get_project,
             rename_project,
             list_files,
+            get_file,
+            get_file_path,
+            update_file,
             create_file_at_path,
             create_dir_at_path,
             delete_file_at_path,
