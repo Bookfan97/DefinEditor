@@ -11,7 +11,7 @@ import {
     CommandList,
 } from "@/components/ui/command";
 
-import { Project, useProjects } from "../hooks/use-projects";
+import { Project, useOpenProject, useProjects } from "../hooks/use-projects";
 
 interface ProjectsCommandDialogProps {
     open: boolean;
@@ -40,11 +40,19 @@ export const ProjectsCommandDialog = ({
                                           open,
                                           onOpenChange,
                                       }: ProjectsCommandDialogProps) => {
-    const { projects } = useProjects();
+    const { projects, refresh } = useProjects();
+    const openProject = useOpenProject();
 
-    const handleSelect = (projectId: string) => {
-        window.location.href = `/projects/${projectId}`;
-        onOpenChange(false);
+    const handleSelect = async (projectId: string) => {
+        try {
+            await openProject(projectId);
+            refresh();
+            // window.location.href = `/projects/${projectId}`;
+            console.log("Project opened:", projectId);
+            onOpenChange(false);
+        } catch (error) {
+            console.error("Failed to open project:", error);
+        }
     };
 
     return (

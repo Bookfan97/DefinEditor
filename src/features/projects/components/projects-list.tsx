@@ -7,7 +7,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 
-import { Project, useProjectsPartial } from "../hooks/use-projects";
+import { Project, useOpenProject, useProjects, useProjectsPartial } from "../hooks/use-projects";
 
 const formatTimestamp = (timestamp: number | undefined) => {
     if (!timestamp) return "Unknown";
@@ -43,21 +43,23 @@ interface ProjectsListProps {
 }
 
 const ContinueCard = ({
-                          data
+                          data,
+                          onOpen
                       }: {
     data: Project;
+    onOpen: (id: string) => void;
 }) => {
     return (
         <div className="flex flex-col gap-2">
       <span className="text-xs text-muted-foreground">
-        Last updated
+        Recently opened
       </span>
             <Button
                 variant="outline"
-                asChild
+                onClick={() => onOpen(data.id)}
                 className="h-auto items-start justify-start p-4 bg-background border rounded-none flex flex-col gap-2"
             >
-                <a href={`/projects/${data.id}`} className="group">
+                <div className="group w-full">
                     <div className="flex items-center justify-between w-full">
                         <div className="flex items-center gap-2">
                             {getProjectIcon(data)}
@@ -68,22 +70,24 @@ const ContinueCard = ({
                         <ArrowRightIcon className="size-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
                     </div>
                     <span className="text-xs text-muted-foreground">
-            {formatTimestamp(data.updatedAt)}
+            {formatTimestamp(data.lastOpened)}
           </span>
-                </a>
+                </div>
             </Button>
         </div>
     )
 };
 
 const ProjectItem = ({
-                         data
+                         data,
+                         onOpen
                      }: {
     data: Project;
+    onOpen: (id: string) => void;
 }) => {
     return (
-        <a
-            href={`/projects/${data.id}`}
+        <button
+            onClick={() => onOpen(data.id)}
             className="text-sm text-foreground/60 font-medium hover:text-foreground py-1 flex items-center justify-between w-full group"
         >
             <div className="flex items-center gap-2">
@@ -91,26 +95,39 @@ const ProjectItem = ({
                 <span className="truncate">{data.name}</span>
             </div>
             <span className="text-xs text-muted-foreground group-hover:text-foreground/60 transition-colors">
-        {formatTimestamp(data.updatedAt)}
+        {formatTimestamp(data.lastOpened)}
       </span>
-        </a>
+        </button>
     );
 };
 
 export const ProjectsList = ({
                                  onViewAll
                              }: ProjectsListProps) => {
+    const { refresh } = useProjects();
     const projects = useProjectsPartial(6);
+    const openProject = useOpenProject();
 
     if (projects === undefined) {
         return <Spinner className="size-4 text-ring" />
     }
 
+    const handleOpen = async (id: string) => {
+        try {
+            await openProject(id);
+            refresh();
+            // TODO: Navigate to project editor
+            console.log("Project opened:", id);
+        } catch (error) {
+            console.error("Failed to open project:", error);
+        }
+    };
+
     const [mostRecent, ...rest] = projects;
 
     return (
         <div className="flex flex-col gap-4">
-            {mostRecent ? <ContinueCard data={mostRecent} /> : null}
+            {mostRecent ? <ContinueCard data={mostRecent} onOpen={handleOpen} /> : null}
             {rest.length > 0 && (
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between gap-2">
@@ -132,6 +149,7 @@ export const ProjectsList = ({
                             <ProjectItem
                                 key={project.id}
                                 data={project}
+                                onOpen={handleOpen}
                             />
                         ))}
                     </ul>

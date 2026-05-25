@@ -9,13 +9,14 @@ import {
     uniqueNamesGenerator,
 } from "unique-names-generator";
 import { useEffect, useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 
 import { ProjectsList } from "./projects-list";
-import { useCreateProject, useProjects } from "../hooks/use-projects";
+import { useCreateProject, useImportProject, useOpenProject, useProjects } from "../hooks/use-projects";
 import { ProjectsCommandDialog } from "./projects-command-dialog";
 import { ModeToggle } from "@/components/mode-toggle";
 
@@ -24,8 +25,27 @@ const font = { className: "" };
 export const ProjectsView = () => {
     const { refresh } = useProjects();
     const createProject = useCreateProject();
+    const importProject = useImportProject();
+    const openProject = useOpenProject();
 
     const [commandDialogOpen, setCommandDialogOpen] = useState(false);
+
+    const handleOpenFolder = async () => {
+        const selected = await open({
+            directory: true,
+            multiple: false,
+        });
+
+        if (selected && typeof selected === "string") {
+            try {
+                const project = await importProject(selected);
+                await openProject(project.id);
+                refresh();
+            } catch (error) {
+                console.error("Failed to open folder:", error);
+            }
+        }
+    };
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -102,7 +122,7 @@ export const ProjectsView = () => {
                             </Button>
                             <Button
                                 variant="outline"
-                                onClick={() => setCommandDialogOpen(true)}
+                                onClick={handleOpenFolder}
                                 className="h-full items-start justify-start p-4 bg-background border flex flex-col gap-6 rounded-none"
                             >
                                 <div className="flex items-center justify-between w-full">
