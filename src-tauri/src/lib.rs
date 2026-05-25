@@ -140,6 +140,38 @@ fn import_project(app_handle: tauri::AppHandle, path_str: String) -> Result<Proj
     Ok(new_project)
 }
 
+#[tauri::command]
+fn get_project(app_handle: tauri::AppHandle, id: String) -> Result<Project, String> {
+    let projects = get_projects(app_handle);
+    projects
+        .into_iter()
+        .find(|p| p.id == id)
+        .ok_or_else(|| "Project not found".to_string())
+}
+
+#[tauri::command]
+fn rename_project(app_handle: tauri::AppHandle, id: String, name: String) -> Result<Project, String> {
+    let path = get_projects_path(&app_handle);
+    let mut projects = get_projects(app_handle.clone());
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+
+    let project = if let Some(project) = projects.iter_mut().find(|p| p.id == id) {
+        project.name = name;
+        project.updated_at = now;
+        project.clone()
+    } else {
+        return Err("Project not found".to_string());
+    };
+
+    let content = serde_json::to_string(&projects).map_err(|e| e.to_string())?;
+    fs::write(path, content).map_err(|e| e.to_string())?;
+    Ok(project)
+}
+
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -156,7 +188,9 @@ pub fn run() {
             get_projects,
             create_project,
             open_project,
-            import_project
+            import_project,
+            get_project,
+            rename_project
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

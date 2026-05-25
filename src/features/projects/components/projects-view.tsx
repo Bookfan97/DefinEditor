@@ -41,6 +41,8 @@ export const ProjectsView = () => {
                 const project = await importProject(selected);
                 await openProject(project.id);
                 refresh();
+                window.history.pushState({}, "", `/projects/${project.id}`);
+                window.dispatchEvent(new Event("pushstate"));
             } catch (error) {
                 console.error("Failed to open folder:", error);
             }
@@ -102,8 +104,10 @@ export const ProjectsView = () => {
 
                                     createProject({
                                         name: projectName,
-                                    }).then(() => {
+                                    }).then((project) => {
                                         refresh();
+                                        window.history.pushState({}, "", `/projects/${project.id}`);
+                                        window.dispatchEvent(new Event("pushstate"));
                                     });
                                 }}
                                 className="h-full items-start justify-start p-4 bg-background border flex flex-col gap-6 rounded-none"

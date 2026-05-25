@@ -70,3 +70,27 @@ export const useOpenProject = () => {
         }
     };
 };
+
+export const useProject = (id: string) => {
+    const [project, setProject] = useState<Project | undefined>(undefined);
+
+    useEffect(() => {
+        if (!id) return;
+        invoke<Project>("get_project", { id })
+            .then(setProject)
+            .catch(console.error);
+    }, [id]);
+
+    return project;
+};
+
+export const useRenameProject = () => {
+    return async (args: { id: string; name: string }) => {
+        try {
+            return await invoke<Project>("rename_project", { id: args.id, name: args.name });
+        } catch (error) {
+            console.error("Failed to rename project:", error);
+            throw error;
+        }
+    };
+};

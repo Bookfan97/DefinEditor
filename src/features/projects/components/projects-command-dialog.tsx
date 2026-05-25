@@ -47,8 +47,8 @@ export const ProjectsCommandDialog = ({
         try {
             await openProject(projectId);
             refresh();
-            // window.location.href = `/projects/${projectId}`;
-            console.log("Project opened:", projectId);
+            window.history.pushState({}, "", `/projects/${projectId}`);
+            window.dispatchEvent(new Event("pushstate"));
             onOpenChange(false);
         } catch (error) {
             console.error("Failed to open project:", error);

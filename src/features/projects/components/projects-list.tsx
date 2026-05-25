@@ -116,8 +116,8 @@ export const ProjectsList = ({
         try {
             await openProject(id);
             refresh();
-            // TODO: Navigate to project editor
-            console.log("Project opened:", id);
+            window.history.pushState({}, "", `/projects/${id}`);
+            window.dispatchEvent(new Event("pushstate"));
         } catch (error) {
             console.error("Failed to open project:", error);
         }
